@@ -11,6 +11,7 @@ import { Storyboard } from '@/components/video/storyboard';
 import { Player } from '@/components/video/player';
 import { Video, Sparkles, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { UserMenu } from '@/components/auth/user-menu';
 
 export default function GeneratePage() {
   const [prompt, setPrompt] = useState('');
@@ -105,9 +106,12 @@ export default function GeneratePage() {
               </h1>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            Powered by Gemini
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">Powered by Gemini</span>
+            </div>
+            <UserMenu />
           </div>
         </div>
       </header>
