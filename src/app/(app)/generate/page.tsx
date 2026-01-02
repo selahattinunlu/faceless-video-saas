@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { GenerationStatus, GeneratedScene } from '@/types';
+import { GenerationStatus, GeneratedScene, Scene } from '@/types';
 import { generateScript } from '@/actions/generate-script';
 import { generateSceneImage } from '@/actions/generate-image';
-import { generateSceneAudio } from '@/actions/generate-audio';
-import { decodeGeminiAudio } from '@/lib/audio-decoder';
+import { generateSceneAudio, markSceneCompleted } from '@/actions/generate-audio';
+import { createProject, updateProjectStatus } from '@/actions/projects';
+import { decrementCredits, getUserCredits } from '@/actions/credits';
+import { fetchAndDecodeAudio } from '@/lib/audio-decoder';
 import { PromptInput } from '@/components/prompt-input';
 import { Storyboard } from '@/components/video/storyboard';
 import { Player } from '@/components/video/player';
-import { Video, Sparkles, ArrowLeft } from 'lucide-react';
+import { Video, Sparkles, ArrowLeft, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
 
@@ -18,6 +20,7 @@ export default function GeneratePage() {
   const [status, setStatus] = useState<GenerationStatus>(GenerationStatus.IDLE);
   const [scenes, setScenes] = useState<GeneratedScene[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const updateScene = (id: string, updates: Partial<GeneratedScene>) => {
@@ -32,34 +35,54 @@ export default function GeneratePage() {
     setStatus(GenerationStatus.SCRIPTING);
     setError(null);
     setScenes([]);
+    setCurrentProjectId(null);
 
     startTransition(async () => {
       try {
-        // 1. Generate Script
-        const scriptItems = await generateScript(prompt);
+        // Check credits first
+        const credits = await getUserCredits();
+        if (!credits || credits.credits_remaining <= 0) {
+          throw new Error("No credits remaining. Please upgrade your plan.");
+        }
 
-        const initialScenes: GeneratedScene[] = scriptItems.map(item => ({
-          ...item,
-          id: Math.random().toString(36).substr(2, 9),
+        // 1. Create project in database
+        const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+        const project = await createProject(title, prompt);
+        setCurrentProjectId(project.id);
+
+        // 2. Generate Script (saves scenes to DB)
+        const dbScenes = await generateScript(project.id);
+
+        // Convert DB scenes to GeneratedScene format for UI
+        const initialScenes: GeneratedScene[] = dbScenes.map(scene => ({
+          id: scene.id,
+          scene_number: scene.scene_number,
+          narration: scene.narration,
+          visual_prompt: scene.visual_prompt,
           status: 'pending'
         }));
 
         setScenes(initialScenes);
         setStatus(GenerationStatus.GENERATING_ASSETS);
 
-        // 2. Generate Assets for each scene
+        // 3. Generate Assets for each scene (parallel)
         const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
 
-        await Promise.all(initialScenes.map(async (scene) => {
+        await Promise.all(dbScenes.map(async (scene: Scene) => {
           updateScene(scene.id, { status: 'loading' });
 
           try {
-            const [imageUrl, audioBase64] = await Promise.all([
-              generateSceneImage(scene.visual_prompt),
-              generateSceneAudio(scene.narration)
+            // Generate image and audio in parallel
+            const [imageUrl, audioUrl] = await Promise.all([
+              generateSceneImage(scene.id),
+              generateSceneAudio(scene.id)
             ]);
 
-            const audioBuffer = await decodeGeminiAudio(audioBase64, audioContext);
+            // Mark scene as completed in DB
+            await markSceneCompleted(scene.id);
+
+            // Fetch and decode audio from URL
+            const audioBuffer = await fetchAndDecodeAudio(audioUrl, audioContext);
 
             updateScene(scene.id, {
               imageUrl,
@@ -72,12 +95,25 @@ export default function GeneratePage() {
           }
         }));
 
+        // 4. Update project status and decrement credits
+        await updateProjectStatus(project.id, 'completed');
+        await decrementCredits();
+
         setStatus(GenerationStatus.READY);
 
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? err.message : "Bir hata oluştu.");
+        setError(err instanceof Error ? err.message : "An error occurred.");
         setStatus(GenerationStatus.ERROR);
+
+        // Mark project as failed if it was created
+        if (currentProjectId) {
+          try {
+            await updateProjectStatus(currentProjectId, 'failed');
+          } catch {
+            // Ignore error updating project status
+          }
+        }
       }
     });
   };
@@ -94,7 +130,7 @@ export default function GeneratePage() {
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm">Geri</span>
+              <span className="text-sm">Back</span>
             </Link>
             <div className="w-px h-6 bg-border" />
             <div className="flex items-center gap-3">
@@ -107,6 +143,13 @@ export default function GeneratePage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Link
+              href="/projects"
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <FolderOpen className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">My Videos</span>
+            </Link>
             <div className="text-sm text-muted-foreground flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
               <span className="hidden sm:inline">Powered by Gemini</span>
@@ -123,11 +166,11 @@ export default function GeneratePage() {
         <div className="w-full max-w-2xl mx-auto text-center space-y-8">
           <div className="space-y-4">
             <h2 className="text-4xl md:text-5xl font-bold leading-tight">
-              Fikirden Videoya, <br/>
-              <span className="text-cyan-400">Saniyeler Icinde.</span>
+              From Idea to Video, <br/>
+              <span className="text-cyan-400">In Seconds.</span>
             </h2>
             <p className="text-muted-foreground text-lg">
-              Istedigin konuyu yaz, yapay zeka senin icin senaryoyu yazsin, gorselleri uretsin ve seslendirsin.
+              Enter your topic and let AI write the script, generate visuals, and add voiceover.
             </p>
           </div>
 
@@ -156,13 +199,13 @@ export default function GeneratePage() {
                 <div className="sticky top-28">
                   <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
-                    Onizleme
+                    Preview
                   </h3>
                   {scenes.every(s => s.status === 'complete') ? (
                     <Player scenes={scenes} />
                   ) : (
                     <div className="w-full aspect-[9/16] bg-muted/50 rounded-2xl border border-dashed border-border flex items-center justify-center text-muted-foreground animate-pulse">
-                      Tum sahneler hazirlaniyor...
+                      Preparing all scenes...
                     </div>
                   )}
                 </div>
@@ -173,7 +216,7 @@ export default function GeneratePage() {
                 <div className="flex justify-between items-end mb-6">
                   <h3 className="text-xl font-semibold">Storyboard</h3>
                   <span className="text-sm text-muted-foreground">
-                    {scenes.filter(s => s.status === 'complete').length} / {scenes.length} Hazir
+                    {scenes.filter(s => s.status === 'complete').length} / {scenes.length} Ready
                   </span>
                 </div>
                 <Storyboard scenes={scenes} />
