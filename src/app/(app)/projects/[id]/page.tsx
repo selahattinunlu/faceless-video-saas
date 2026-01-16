@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useParams } from 'next/navigation';
-import { ProjectWithScenes, GeneratedScene } from '@/types';
-import { getProject } from '@/actions/projects';
+import { ProjectWithScenes, GeneratedScene, CaptionStyleId, CaptionPosition } from '@/types';
+import { getProject, updateProjectCaptionSettings } from '@/actions/projects';
 import { fetchAndDecodeAudio } from '@/lib/audio-decoder';
 import { Storyboard } from '@/components/video/storyboard';
 import { Player } from '@/components/video/player';
+import { CaptionStyleSelector } from '@/components/video/caption-style-selector';
 import { Video, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
@@ -21,6 +22,11 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState(false);
 
+  // Caption settings state (editable)
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>('classic');
+  const [captionPosition, setCaptionPosition] = useState<CaptionPosition>('bottom');
+  const [isSaving, startSaving] = useTransition();
+
   useEffect(() => {
     loadProject();
   }, [projectId]);
@@ -34,6 +40,8 @@ export default function ProjectDetailPage() {
       }
 
       setProject(data);
+      setCaptionStyle(data.caption_style || 'classic');
+      setCaptionPosition(data.caption_position || 'bottom');
 
       // Convert DB scenes to GeneratedScene format
       const generatedScenes: GeneratedScene[] = data.scenes.map(scene => ({
@@ -74,6 +82,26 @@ export default function ProjectDetailPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStyleChange = (style: CaptionStyleId) => {
+    setCaptionStyle(style);
+    saveCaptionSettings(style, captionPosition);
+  };
+
+  const handlePositionChange = (position: CaptionPosition) => {
+    setCaptionPosition(position);
+    saveCaptionSettings(captionStyle, position);
+  };
+
+  const saveCaptionSettings = (style: CaptionStyleId, position: CaptionPosition) => {
+    startSaving(async () => {
+      try {
+        await updateProjectCaptionSettings(projectId, style, position);
+      } catch (err) {
+        console.error('Failed to save caption settings:', err);
+      }
+    });
   };
 
   if (loading) {
@@ -121,7 +149,15 @@ export default function ProjectDetailPage() {
               </h1>
             </div>
           </div>
-          <UserMenu />
+          <div className="flex items-center gap-2">
+            {isSaving && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Saving...
+              </span>
+            )}
+            <UserMenu />
+          </div>
         </div>
       </header>
 
@@ -136,7 +172,11 @@ export default function ProjectDetailPage() {
                 Preview
               </h3>
               {isReady ? (
-                <Player scenes={scenes} />
+                <Player
+                  scenes={scenes}
+                  captionStyle={captionStyle}
+                  captionPosition={captionPosition}
+                />
               ) : loadingAudio ? (
                 <div className="w-full aspect-[9/16] bg-muted/50 rounded-2xl border border-dashed border-border flex flex-col items-center justify-center text-muted-foreground gap-3">
                   <Loader2 className="w-6 h-6 animate-spin" />
@@ -156,6 +196,16 @@ export default function ProjectDetailPage() {
             <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-2">Prompt</h2>
               <p className="text-muted-foreground">{project.prompt}</p>
+            </div>
+
+            {/* Caption Settings */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <CaptionStyleSelector
+                value={captionStyle}
+                onChange={handleStyleChange}
+                position={captionPosition}
+                onPositionChange={handlePositionChange}
+              />
             </div>
 
             {/* Storyboard */}

@@ -1,22 +1,28 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { GeneratedScene } from '@/types';
+import { GeneratedScene, CaptionStyleId, CaptionPosition } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, Download, Loader2 } from 'lucide-react';
+import { CaptionRenderer } from '@/lib/caption-renderer';
 
 interface PlayerProps {
   scenes: GeneratedScene[];
+  captionStyle?: CaptionStyleId;
+  captionPosition?: CaptionPosition;
 }
 
-export function Player({ scenes }: PlayerProps) {
+export function Player({ scenes, captionStyle = 'classic', captionPosition = 'bottom' }: PlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
-  
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const captionRendererRef = useRef<CaptionRenderer | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const sceneStartTimeRef = useRef<number>(0);
 
   // Initialize Canvas
   React.useEffect(() => {
@@ -26,17 +32,30 @@ export function Player({ scenes }: PlayerProps) {
       if (ctx) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         if (scenes.length > 0 && scenes[0].imageUrl) {
           const img = new Image();
+          img.crossOrigin = "anonymous";
           img.src = scenes[0].imageUrl;
           img.onload = () => {
             drawToCanvas(ctx, img, canvas.width, canvas.height);
+
+            // Initialize caption renderer and show first scene caption
+            if (!captionRendererRef.current) {
+              captionRendererRef.current = new CaptionRenderer(ctx);
+            }
+            captionRendererRef.current.renderStatic({
+              text: scenes[0].narration,
+              styleId: captionStyle,
+              position: captionPosition,
+              canvasWidth: canvas.width,
+              canvasHeight: canvas.height,
+            });
           };
         }
       }
     }
-  }, [scenes]);
+  }, [scenes, captionStyle, captionPosition]);
 
   const drawToCanvas = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, h: number) => {
     const scale = Math.max(w / img.width, h / img.height);
@@ -49,6 +68,10 @@ export function Player({ scenes }: PlayerProps) {
     if (activeSourceRef.current) {
       activeSourceRef.current.stop();
       activeSourceRef.current = null;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     setIsPlaying(false);
   };
@@ -77,29 +100,51 @@ export function Player({ scenes }: PlayerProps) {
           }
         });
         drawToCanvas(context, img, canvas.width, canvas.height);
-        
-        // Add text overlay
-        context.fillStyle = 'rgba(0,0,0,0.6)';
-        context.fillRect(0, canvas.height - 150, canvas.width, 150);
-        context.font = '24px system-ui, sans-serif';
-        context.fillStyle = 'white';
-        context.textAlign = 'center';
-        
-        const words = scene.narration.split(' ');
-        let line = '';
-        let y = canvas.height - 100;
-        for (let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + ' ';
-          const metrics = context.measureText(testLine);
-          if (metrics.width > canvas.width - 40 && n > 0) {
-            context.fillText(line, canvas.width / 2, y);
-            line = words[n] + ' ';
-            y += 30;
-          } else {
-            line = testLine;
-          }
+
+        // Initialize caption renderer
+        if (!captionRendererRef.current) {
+          captionRendererRef.current = new CaptionRenderer(context);
         }
-        context.fillText(line, canvas.width / 2, y);
+
+        const durationMs = scene.audioBuffer
+          ? scene.audioBuffer.duration * 1000
+          : 3000;
+
+        // Setup for animated styles
+        captionRendererRef.current.setup(scene.narration, captionStyle, durationMs);
+        sceneStartTimeRef.current = performance.now();
+
+        // Cancel any existing animation
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+
+        // Start animation loop for animated styles
+        const animate = () => {
+          if (!canvas || !context) return;
+
+          const elapsedMs = performance.now() - sceneStartTimeRef.current;
+
+          // Redraw image
+          drawToCanvas(context, img, canvas.width, canvas.height);
+
+          // Render caption with current elapsed time
+          captionRendererRef.current?.render({
+            text: scene.narration,
+            styleId: captionStyle,
+            position: captionPosition,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            durationMs,
+            elapsedMs,
+          });
+
+          if (elapsedMs < durationMs) {
+            animationFrameRef.current = requestAnimationFrame(animate);
+          }
+        };
+
+        animate();
       }
     }
 
@@ -175,21 +220,47 @@ export function Player({ scenes }: PlayerProps) {
     for (let i = 0; i < scenes.length; i++) {
       setCurrentSceneIndex(i);
       const scene = scenes[i];
-      
+
       if (canvasRef.current && scene.imageUrl) {
         const c = canvasRef.current.getContext('2d');
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.src = scene.imageUrl;
         await new Promise(r => { img.onload = r; });
+
         if (c) {
-          drawToCanvas(c, img, canvasRef.current.width, canvasRef.current.height);
-          c.fillStyle = 'rgba(0,0,0,0.6)';
-          c.fillRect(0, canvasRef.current.height - 150, canvasRef.current.width, 150);
-          c.font = '24px system-ui, sans-serif';
-          c.fillStyle = 'white';
-          c.textAlign = 'center';
-          c.fillText(scene.narration.substring(0, 40) + "...", canvasRef.current.width / 2, canvasRef.current.height - 80);
+          const durationMs = scene.audioBuffer
+            ? scene.audioBuffer.duration * 1000
+            : 2000;
+
+          // Initialize renderer for export
+          const exportRenderer = new CaptionRenderer(c);
+          exportRenderer.setup(scene.narration, captionStyle, durationMs);
+
+          const startTime = performance.now();
+
+          // Animate during audio playback
+          const animateExport = () => {
+            if (!canvasRef.current || !c) return;
+
+            const elapsedMs = performance.now() - startTime;
+            drawToCanvas(c, img, canvasRef.current.width, canvasRef.current.height);
+            exportRenderer.render({
+              text: scene.narration,
+              styleId: captionStyle,
+              position: captionPosition,
+              canvasWidth: canvasRef.current.width,
+              canvasHeight: canvasRef.current.height,
+              durationMs,
+              elapsedMs,
+            });
+
+            if (elapsedMs < durationMs) {
+              requestAnimationFrame(animateExport);
+            }
+          };
+
+          animateExport();
         }
       }
 

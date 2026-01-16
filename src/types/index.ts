@@ -32,6 +32,8 @@ export interface Project {
   title: string;
   prompt: string;
   status: 'draft' | 'generating' | 'completed' | 'failed';
+  caption_style: CaptionStyleId;
+  caption_position: CaptionPosition;
   created_at: string;
   updated_at: string;
 }
@@ -68,4 +70,44 @@ export interface UserCredits {
   user_id: string;
   credits_remaining: number;
   total_videos_generated: number;
+}
+
+// Caption Style Types
+export type CaptionStyleId = 'classic' | 'bold' | 'minimal' | 'neon';
+export type CaptionPosition = 'center' | 'bottom';
+
+export interface CaptionTextStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: string;
+  color: string;
+  highlightColor?: string; // For karaoke effect
+  strokeColor?: string;
+  strokeWidth?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+}
+
+export interface CaptionBackgroundStyle {
+  enabled: boolean;
+  color: string;
+  padding: number;
+  borderRadius: number;
+}
+
+export interface CaptionAnimationStyle {
+  type: 'karaoke';
+  wordTransition: 'instant' | 'smooth';
+  wordsPerChunk: number; // How many words to show at a time
+}
+
+export interface CaptionStyleConfig {
+  id: CaptionStyleId;
+  name: string;
+  supportsAnimation: boolean;
+  textStyle: CaptionTextStyle;
+  backgroundStyle: CaptionBackgroundStyle;
+  animationStyle?: CaptionAnimationStyle;
 }

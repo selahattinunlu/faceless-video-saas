@@ -1,9 +1,14 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { Project, ProjectWithScenes, Scene } from '@/types'
+import { Project, ProjectWithScenes, Scene, CaptionStyleId, CaptionPosition } from '@/types'
 
-export async function createProject(title: string, prompt: string): Promise<Project> {
+export async function createProject(
+  title: string,
+  prompt: string,
+  captionStyle: CaptionStyleId = 'classic',
+  captionPosition: CaptionPosition = 'bottom'
+): Promise<Project> {
   const supabase = await createClient()
 
   const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -17,6 +22,8 @@ export async function createProject(title: string, prompt: string): Promise<Proj
       user_id: user.id,
       title,
       prompt,
+      caption_style: captionStyle,
+      caption_position: captionPosition,
       status: 'draft'
     })
     .select()
@@ -102,5 +109,25 @@ export async function deleteProject(id: string): Promise<void> {
 
   if (error) {
     throw new Error(`Failed to delete project: ${error.message}`)
+  }
+}
+
+export async function updateProjectCaptionSettings(
+  id: string,
+  captionStyle: CaptionStyleId,
+  captionPosition: CaptionPosition
+): Promise<void> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      caption_style: captionStyle,
+      caption_position: captionPosition
+    })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(`Failed to update caption settings: ${error.message}`)
   }
 }
