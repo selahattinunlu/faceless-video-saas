@@ -32,6 +32,7 @@ export interface Project {
   title: string;
   prompt: string;
   status: 'draft' | 'generating' | 'completed' | 'failed';
+  language: LanguageCode;
   caption_style: CaptionStyleId;
   caption_position: CaptionPosition;
   created_at: string;
@@ -71,6 +72,27 @@ export interface UserCredits {
   credits_remaining: number;
   total_videos_generated: number;
 }
+
+// Language Types
+export type LanguageCode = 'en' | 'tr' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko';
+
+export interface Language {
+  code: LanguageCode;
+  name: string;
+  nativeName: string;
+}
+
+export const SUPPORTED_LANGUAGES: Language[] = [
+  { code: 'en', name: 'English', nativeName: 'English' },
+  { code: 'tr', name: 'Turkish', nativeName: 'Türkçe' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español' },
+  { code: 'fr', name: 'French', nativeName: 'Français' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어' },
+];
 
 // Caption Style Types
 export type CaptionStyleId = 'classic' | 'bold' | 'minimal' | 'neon';

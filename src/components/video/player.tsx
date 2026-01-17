@@ -24,6 +24,16 @@ export function Player({ scenes, captionStyle = 'classic', captionPosition = 'bo
   const animationFrameRef = useRef<number | null>(null);
   const sceneStartTimeRef = useRef<number>(0);
 
+  // Refs to track latest caption style/position for use in animation loops
+  const captionStyleRef = useRef(captionStyle);
+  const captionPositionRef = useRef(captionPosition);
+
+  // Keep refs in sync with props
+  React.useEffect(() => {
+    captionStyleRef.current = captionStyle;
+    captionPositionRef.current = captionPosition;
+  }, [captionStyle, captionPosition]);
+
   // Initialize Canvas
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,7 +121,7 @@ export function Player({ scenes, captionStyle = 'classic', captionPosition = 'bo
           : 3000;
 
         // Setup for animated styles
-        captionRendererRef.current.setup(scene.narration, captionStyle, durationMs);
+        captionRendererRef.current.setup(scene.narration, captionStyleRef.current, durationMs);
         sceneStartTimeRef.current = performance.now();
 
         // Cancel any existing animation
@@ -128,11 +138,11 @@ export function Player({ scenes, captionStyle = 'classic', captionPosition = 'bo
           // Redraw image
           drawToCanvas(context, img, canvas.width, canvas.height);
 
-          // Render caption with current elapsed time
+          // Render caption with current elapsed time (using refs for live updates)
           captionRendererRef.current?.render({
             text: scene.narration,
-            styleId: captionStyle,
-            position: captionPosition,
+            styleId: captionStyleRef.current,
+            position: captionPositionRef.current,
             canvasWidth: canvas.width,
             canvasHeight: canvas.height,
             durationMs,

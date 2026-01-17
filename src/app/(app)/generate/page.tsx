@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { GenerationStatus, GeneratedScene, Scene, CaptionStyleId, CaptionPosition } from '@/types';
+import { GenerationStatus, GeneratedScene, Scene, CaptionStyleId, CaptionPosition, LanguageCode } from '@/types';
 import { generateScript } from '@/actions/generate-script';
 import { generateSceneImage } from '@/actions/generate-image';
 import { generateSceneAudio, markSceneCompleted } from '@/actions/generate-audio';
@@ -12,6 +12,7 @@ import { PromptInput } from '@/components/prompt-input';
 import { Storyboard } from '@/components/video/storyboard';
 import { Player } from '@/components/video/player';
 import { CaptionStyleSelector } from '@/components/video/caption-style-selector';
+import { LanguageSelector } from '@/components/language-selector';
 import { Video, Sparkles, ArrowLeft, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 import { UserMenu } from '@/components/auth/user-menu';
@@ -22,6 +23,7 @@ export default function GeneratePage() {
   const [scenes, setScenes] = useState<GeneratedScene[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<LanguageCode>('en');
   const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>('classic');
   const [captionPosition, setCaptionPosition] = useState<CaptionPosition>('bottom');
   const [isPending, startTransition] = useTransition();
@@ -50,7 +52,7 @@ export default function GeneratePage() {
 
         // 1. Create project in database
         const title = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
-        const project = await createProject(title, prompt, captionStyle, captionPosition);
+        const project = await createProject(title, prompt, language);
         setCurrentProjectId(project.id);
 
         // 2. Generate Script (saves scenes to DB)
@@ -184,11 +186,10 @@ export default function GeneratePage() {
             status={status}
           />
 
-          <CaptionStyleSelector
-            value={captionStyle}
-            onChange={setCaptionStyle}
-            position={captionPosition}
-            onPositionChange={setCaptionPosition}
+          <LanguageSelector
+            value={language}
+            onChange={setLanguage}
+            disabled={status !== GenerationStatus.IDLE}
           />
 
           {error && (
@@ -202,6 +203,18 @@ export default function GeneratePage() {
         {scenes.length > 0 && (
           <div className="space-y-12 animate-in fade-in duration-500">
             <div className="w-full h-px bg-border" />
+
+            {/* Caption Style Selector - only shown when video is ready */}
+            {status === GenerationStatus.READY && (
+              <div className="max-w-2xl mx-auto">
+                <CaptionStyleSelector
+                  value={captionStyle}
+                  onChange={setCaptionStyle}
+                  position={captionPosition}
+                  onPositionChange={setCaptionPosition}
+                />
+              </div>
+            )}
 
             <div className="flex flex-col lg:flex-row gap-12">
               {/* Left: Player (Sticky) */}

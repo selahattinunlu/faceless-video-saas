@@ -2,18 +2,28 @@
 
 import { ai } from '@/lib/gemini';
 import { Type } from '@google/genai';
-import { ScriptItem, Scene } from '@/types';
+import { ScriptItem, Scene, LanguageCode, SUPPORTED_LANGUAGES } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 
+function getLanguageName(code: LanguageCode): string {
+  const lang = SUPPORTED_LANGUAGES.find(l => l.code === code);
+  return lang?.name || 'English';
+}
+
 // Original function for generating script without DB persistence (for preview)
-export async function generateScriptPreview(topic: string): Promise<ScriptItem[]> {
+export async function generateScriptPreview(topic: string, language: LanguageCode = 'en'): Promise<ScriptItem[]> {
+  const languageName = getLanguageName(language);
+
   const prompt = `
     Create a short video script for a vertical social media video (Shorts/Reels) about: "${topic}".
     The video should be between 30-45 seconds total.
     Break it down into 3 to 5 scenes.
+
+    IMPORTANT: Write all narration text in ${languageName} language.
+
     For each scene, provide:
-    1. "narration": The spoken text for the voiceover (keep it punchy and engaging).
-    2. "visual_prompt": A detailed image generation prompt to visualize this scene (photorealistic, high quality).
+    1. "narration": The spoken text for the voiceover in ${languageName} (keep it punchy and engaging).
+    2. "visual_prompt": A detailed image generation prompt to visualize this scene (photorealistic, high quality). Always write visual prompts in English.
 
     Return ONLY a JSON array.
   `;
@@ -55,10 +65,10 @@ export async function generateScriptPreview(topic: string): Promise<ScriptItem[]
 export async function generateScript(projectId: string): Promise<Scene[]> {
   const supabase = await createClient();
 
-  // Verify project exists and get prompt
+  // Verify project exists and get prompt and language
   const { data: project, error: projectError } = await supabase
     .from('projects')
-    .select('prompt')
+    .select('prompt, language')
     .eq('id', projectId)
     .single();
 
@@ -72,8 +82,9 @@ export async function generateScript(projectId: string): Promise<Scene[]> {
     .update({ status: 'generating' })
     .eq('id', projectId);
 
-  // Generate script using AI
-  const scriptItems = await generateScriptPreview(project.prompt);
+  // Generate script using AI with the project's language
+  const language = (project.language as LanguageCode) || 'en';
+  const scriptItems = await generateScriptPreview(project.prompt, language);
 
   // Insert scenes into database
   const scenesToInsert = scriptItems.map(item => ({

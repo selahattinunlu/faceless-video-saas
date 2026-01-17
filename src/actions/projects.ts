@@ -1,13 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { Project, ProjectWithScenes, Scene, CaptionStyleId, CaptionPosition } from '@/types'
+import { Project, ProjectWithScenes, Scene, CaptionStyleId, CaptionPosition, LanguageCode } from '@/types'
 
 export async function createProject(
   title: string,
   prompt: string,
-  captionStyle: CaptionStyleId = 'classic',
-  captionPosition: CaptionPosition = 'bottom'
+  language: LanguageCode = 'en'
 ): Promise<Project> {
   const supabase = await createClient()
 
@@ -22,8 +21,7 @@ export async function createProject(
       user_id: user.id,
       title,
       prompt,
-      caption_style: captionStyle,
-      caption_position: captionPosition,
+      language,
       status: 'draft'
     })
     .select()
