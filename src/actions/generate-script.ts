@@ -4,6 +4,7 @@ import { ai } from '@/lib/gemini';
 import { Type } from '@google/genai';
 import { ScriptItem, Scene, LanguageCode, SUPPORTED_LANGUAGES } from '@/types';
 import { createClient } from '@/lib/supabase/server';
+import { getAutoEffect } from '@/lib/effect-assigner';
 
 function getLanguageName(code: LanguageCode): string {
   const lang = SUPPORTED_LANGUAGES.find(l => l.code === code);
@@ -92,6 +93,7 @@ export async function generateScript(projectId: string): Promise<Scene[]> {
     scene_number: item.scene_number,
     narration: item.narration,
     visual_prompt: item.visual_prompt,
+    effect: getAutoEffect(item.scene_number),
     status: 'pending'
   }));
 

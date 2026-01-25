@@ -5,7 +5,8 @@ import { GenerationStatus, GeneratedScene, Scene, CaptionStyleId, CaptionPositio
 import { generateScript } from '@/actions/generate-script';
 import { generateSceneImage } from '@/actions/generate-image';
 import { generateSceneAudio, markSceneCompleted } from '@/actions/generate-audio';
-import { createProject, updateProjectStatus } from '@/actions/projects';
+import { createProject, updateProjectStatus, updateSceneEffect } from '@/actions/projects';
+import { ImageEffectId } from '@/types';
 import { decrementCredits, getUserCredits } from '@/actions/credits';
 import { fetchAndDecodeAudio } from '@/lib/audio-decoder';
 import { PromptInput } from '@/components/prompt-input';
@@ -30,6 +31,17 @@ export default function GeneratePage() {
 
   const updateScene = (id: string, updates: Partial<GeneratedScene>) => {
     setScenes(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const handleEffectChange = (sceneId: string, effect: ImageEffectId) => {
+    updateScene(sceneId, { effect });
+    startTransition(async () => {
+      try {
+        await updateSceneEffect(sceneId, effect);
+      } catch (err) {
+        console.error('Failed to save effect:', err);
+      }
+    });
   };
 
   const handleGenerate = () => {
@@ -64,6 +76,7 @@ export default function GeneratePage() {
           scene_number: scene.scene_number,
           narration: scene.narration,
           visual_prompt: scene.visual_prompt,
+          effect: scene.effect,
           status: 'pending'
         }));
 
@@ -91,7 +104,9 @@ export default function GeneratePage() {
 
             updateScene(scene.id, {
               imageUrl,
+              audioUrl,
               audioBuffer,
+              durationMs: audioBuffer.duration * 1000,
               status: 'complete'
             });
           } catch (err) {
@@ -242,7 +257,7 @@ export default function GeneratePage() {
                     {scenes.filter(s => s.status === 'complete').length} / {scenes.length} Ready
                   </span>
                 </div>
-                <Storyboard scenes={scenes} />
+                <Storyboard scenes={scenes} onEffectChange={handleEffectChange} />
               </div>
             </div>
           </div>

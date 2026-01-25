@@ -135,17 +135,15 @@ function StylePreview({ styleId, position }: { styleId: CaptionStyleId; position
           "absolute inset-0 flex justify-center",
           isCenter ? "items-center" : "items-end pb-2"
         )}>
-          <div className="bg-black/70 px-3 py-1.5 rounded-md">
-            <span
-              className="text-[10px] font-extrabold"
-              style={{
-                color: '#facc15',
-                textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
-              }}
-            >
-              {previewText}
-            </span>
-          </div>
+          <span
+            className="text-[10px] font-bold"
+            style={{
+              color: '#facc15',
+              textShadow: '0 0 10px #eab308, 0 0 20px #eab308, 0 0 30px #eab308',
+            }}
+          >
+            {previewText}
+          </span>
         </div>
       );
 

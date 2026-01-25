@@ -1,16 +1,17 @@
 'use client';
 
 import React from 'react';
-import { GeneratedScene } from '@/types';
+import { GeneratedScene, ImageEffectId, IMAGE_EFFECTS } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Volume2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StoryboardProps {
   scenes: GeneratedScene[];
+  onEffectChange?: (sceneId: string, effect: ImageEffectId) => void;
 }
 
-export function Storyboard({ scenes }: StoryboardProps) {
+export function Storyboard({ scenes, onEffectChange }: StoryboardProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
       {scenes.map((scene) => (
@@ -74,6 +75,33 @@ export function Storyboard({ scenes }: StoryboardProps) {
             <p className="text-xs text-foreground/80 line-clamp-3 bg-muted/50 p-2 rounded border border-border/50">
               {scene.narration}
             </p>
+
+            {/* Effect Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">
+                Effect:
+              </label>
+              <select
+                value={scene.effect || 'kenburns'}
+                onChange={(e) => {
+                  if (onEffectChange) {
+                    onEffectChange(scene.id, e.target.value as ImageEffectId);
+                  }
+                }}
+                className={cn(
+                  "flex-1 text-xs px-2 py-1 rounded border bg-background",
+                  "border-border hover:border-cyan-500/50 focus:border-cyan-500",
+                  "focus:outline-none focus:ring-1 focus:ring-cyan-500/50",
+                  "transition-colors cursor-pointer"
+                )}
+              >
+                {IMAGE_EFFECTS.map((effect) => (
+                  <option key={effect.id} value={effect.id}>
+                    {effect.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </CardContent>
         </Card>
       ))}

@@ -4,6 +4,44 @@ import { ai } from '@/lib/gemini';
 import { Modality } from '@google/genai';
 import { createClient } from '@/lib/supabase/server';
 
+// Convert PCM buffer to WAV format
+function pcmToWav(pcmBuffer: Buffer): Buffer {
+  const sampleRate = 24000;
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const dataSize = pcmBuffer.length;
+  const headerSize = 44;
+  const fileSize = headerSize + dataSize - 8;
+
+  const wavBuffer = Buffer.alloc(headerSize + dataSize);
+
+  // RIFF chunk
+  wavBuffer.write('RIFF', 0);
+  wavBuffer.writeUInt32LE(fileSize, 4);
+  wavBuffer.write('WAVE', 8);
+
+  // fmt chunk
+  wavBuffer.write('fmt ', 12);
+  wavBuffer.writeUInt32LE(16, 16); // fmt chunk size
+  wavBuffer.writeUInt16LE(1, 20); // audio format (PCM = 1)
+  wavBuffer.writeUInt16LE(numChannels, 22);
+  wavBuffer.writeUInt32LE(sampleRate, 24);
+  wavBuffer.writeUInt32LE(byteRate, 28);
+  wavBuffer.writeUInt16LE(blockAlign, 32);
+  wavBuffer.writeUInt16LE(bitsPerSample, 34);
+
+  // data chunk
+  wavBuffer.write('data', 36);
+  wavBuffer.writeUInt32LE(dataSize, 40);
+
+  // Copy PCM data
+  pcmBuffer.copy(wavBuffer, 44);
+
+  return wavBuffer;
+}
+
 // Original function that returns base64 audio (for preview/non-persisted use)
 export async function generateSceneAudioPreview(text: string): Promise<string> {
   const response = await ai.models.generateContent({
@@ -62,14 +100,15 @@ export async function generateSceneAudio(sceneId: string): Promise<string> {
       throw new Error("No audio generated");
     }
 
-    // Convert base64 to buffer and upload to Supabase Storage
-    const buffer = Buffer.from(base64Audio, 'base64');
-    const fileName = `${scene.project_id}/${sceneId}.pcm`;
+    // Convert base64 to buffer and then to WAV format
+    const pcmBuffer = Buffer.from(base64Audio, 'base64');
+    const wavBuffer = pcmToWav(pcmBuffer);
+    const fileName = `${scene.project_id}/${sceneId}.wav`;
 
     const { error: uploadError } = await supabase.storage
       .from('generated-audio')
-      .upload(fileName, buffer, {
-        contentType: 'audio/pcm',
+      .upload(fileName, wavBuffer, {
+        contentType: 'audio/wav',
         upsert: true
       });
 

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { Project, ProjectWithScenes, Scene, CaptionStyleId, CaptionPosition, LanguageCode } from '@/types'
+import { Project, ProjectWithScenes, Scene, CaptionStyleId, CaptionPosition, LanguageCode, ImageEffectId } from '@/types'
 
 export async function createProject(
   title: string,
@@ -127,5 +127,21 @@ export async function updateProjectCaptionSettings(
 
   if (error) {
     throw new Error(`Failed to update caption settings: ${error.message}`)
+  }
+}
+
+export async function updateSceneEffect(
+  sceneId: string,
+  effect: ImageEffectId
+): Promise<void> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('scenes')
+    .update({ effect })
+    .eq('id', sceneId)
+
+  if (error) {
+    throw new Error(`Failed to update scene effect: ${error.message}`)
   }
 }

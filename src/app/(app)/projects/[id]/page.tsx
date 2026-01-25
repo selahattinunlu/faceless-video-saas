@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useParams } from 'next/navigation';
-import { ProjectWithScenes, GeneratedScene, CaptionStyleId, CaptionPosition } from '@/types';
-import { getProject, updateProjectCaptionSettings } from '@/actions/projects';
+import { ProjectWithScenes, GeneratedScene, CaptionStyleId, CaptionPosition, ImageEffectId } from '@/types';
+import { getProject, updateProjectCaptionSettings, updateSceneEffect } from '@/actions/projects';
 import { fetchAndDecodeAudio } from '@/lib/audio-decoder';
 import { Storyboard } from '@/components/video/storyboard';
 import { Player } from '@/components/video/player';
@@ -50,6 +50,9 @@ export default function ProjectDetailPage() {
         narration: scene.narration,
         visual_prompt: scene.visual_prompt,
         imageUrl: scene.image_url || undefined,
+        audioUrl: scene.audio_url || undefined,
+        durationMs: scene.duration_ms || undefined,
+        effect: scene.effect,
         status: scene.status === 'completed' ? 'complete' : scene.status === 'failed' ? 'error' : 'pending'
       }));
 
@@ -65,7 +68,12 @@ export default function ProjectDetailPage() {
             try {
               const audioBuffer = await fetchAndDecodeAudio(scene.audio_url, audioContext);
               setScenes(prev => prev.map(s =>
-                s.id === scene.id ? { ...s, audioBuffer } : s
+                s.id === scene.id ? {
+                  ...s,
+                  audioBuffer,
+                  audioUrl: scene.audio_url || undefined,
+                  durationMs: audioBuffer.duration * 1000
+                } : s
               ));
             } catch (err) {
               console.error(`Failed to load audio for scene ${scene.scene_number}:`, err);
@@ -100,6 +108,17 @@ export default function ProjectDetailPage() {
         await updateProjectCaptionSettings(projectId, style, position);
       } catch (err) {
         console.error('Failed to save caption settings:', err);
+      }
+    });
+  };
+
+  const handleEffectChange = (sceneId: string, effect: ImageEffectId) => {
+    setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, effect } : s));
+    startSaving(async () => {
+      try {
+        await updateSceneEffect(sceneId, effect);
+      } catch (err) {
+        console.error('Failed to save effect:', err);
       }
     });
   };
@@ -216,7 +235,7 @@ export default function ProjectDetailPage() {
                   {scenes.filter(s => s.status === 'complete').length} / {scenes.length} Ready
                 </span>
               </div>
-              <Storyboard scenes={scenes} />
+              <Storyboard scenes={scenes} onEffectChange={handleEffectChange} />
             </div>
           </div>
         </div>

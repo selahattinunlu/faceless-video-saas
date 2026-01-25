@@ -17,6 +17,9 @@ export interface GeneratedScene extends ScriptItem {
   imageUrl?: string;
   audioBuffer?: AudioBuffer;
   status: 'pending' | 'loading' | 'complete' | 'error';
+  audioUrl?: string;
+  durationMs?: number;
+  effect?: ImageEffectId;
 }
 
 export interface GenerationProgress {
@@ -54,6 +57,7 @@ export interface Scene {
   duration_ms: number | null;
   status: 'pending' | 'generating' | 'completed' | 'failed';
   created_at: string;
+  effect: ImageEffectId;
 }
 
 export interface GenerationJob {
@@ -133,3 +137,31 @@ export interface CaptionStyleConfig {
   backgroundStyle: CaptionBackgroundStyle;
   animationStyle?: CaptionAnimationStyle;
 }
+
+// Image Effect Types
+export type ImageEffectId =
+  | 'kenburns'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'pan-left'
+  | 'pan-right'
+  | 'shake'
+  | 'pulse'
+  | 'none';
+
+export interface ImageEffect {
+  id: ImageEffectId;
+  name: string;
+  description: string;
+}
+
+export const IMAGE_EFFECTS: ImageEffect[] = [
+  { id: 'kenburns', name: 'Ken Burns', description: 'Slow zoom with pan' },
+  { id: 'zoom-in', name: 'Zoom In', description: 'Gradual zoom in' },
+  { id: 'zoom-out', name: 'Zoom Out', description: 'Gradual zoom out' },
+  { id: 'pan-left', name: 'Pan Left', description: 'Horizontal pan left' },
+  { id: 'pan-right', name: 'Pan Right', description: 'Horizontal pan right' },
+  { id: 'shake', name: 'Shake', description: 'Subtle shake effect' },
+  { id: 'pulse', name: 'Pulse', description: 'Gentle pulse/breathe' },
+  { id: 'none', name: 'None', description: 'No effect' },
+];
