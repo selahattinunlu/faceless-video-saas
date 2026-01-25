@@ -28,7 +28,7 @@ export async function generateSceneImagePreview(visualPrompt: string): Promise<s
 }
 
 // New function that uploads to Supabase Storage and updates DB
-export async function generateSceneImage(sceneId: string): Promise<string> {
+export async function generateSceneImage(sceneId: string, imageStylePrefix?: string): Promise<string> {
   const supabase = await createClient();
 
   // Get scene data
@@ -49,12 +49,17 @@ export async function generateSceneImage(sceneId: string): Promise<string> {
     .eq('id', sceneId);
 
   try {
+    // Build the full prompt with style prefix
+    const fullPrompt = imageStylePrefix
+      ? `${imageStylePrefix} ${scene.visual_prompt}, cinematic lighting, 8k resolution, high quality`
+      : `${scene.visual_prompt}, cinematic lighting, 8k resolution, high quality`;
+
     // Generate image using Gemini
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
-          { text: scene.visual_prompt + ", cinematic lighting, 8k resolution, photorealistic, vertical aspect ratio 9:16" }
+          { text: fullPrompt + ", photorealistic, vertical aspect ratio 9:16" }
         ]
       }
     });

@@ -43,7 +43,7 @@ function pcmToWav(pcmBuffer: Buffer): Buffer {
 }
 
 // Original function that returns base64 audio (for preview/non-persisted use)
-export async function generateSceneAudioPreview(text: string): Promise<string> {
+export async function generateSceneAudioPreview(text: string, voiceId: string = 'Kore'): Promise<string> {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
     contents: [{ parts: [{ text }] }],
@@ -51,7 +51,7 @@ export async function generateSceneAudioPreview(text: string): Promise<string> {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Kore' },
+          prebuiltVoiceConfig: { voiceName: voiceId },
         },
       },
     },
@@ -66,7 +66,7 @@ export async function generateSceneAudioPreview(text: string): Promise<string> {
 }
 
 // New function that uploads to Supabase Storage and updates DB
-export async function generateSceneAudio(sceneId: string): Promise<string> {
+export async function generateSceneAudio(sceneId: string, voiceId: string = 'Kore'): Promise<string> {
   const supabase = await createClient();
 
   // Get scene data
@@ -89,7 +89,7 @@ export async function generateSceneAudio(sceneId: string): Promise<string> {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
+            prebuiltVoiceConfig: { voiceName: voiceId },
           },
         },
       },
@@ -164,4 +164,25 @@ export async function markSceneCompleted(sceneId: string): Promise<void> {
       .update({ status: 'completed' })
       .eq('id', sceneId);
   }
+}
+
+// Voice preview sample texts by language
+const VOICE_PREVIEW_TEXTS: Record<string, string> = {
+  en: 'Hello! This is a preview of my voice. I hope you like how I sound.',
+  tr: 'Merhaba! Bu benim sesimin bir önizlemesi. Umarım sesimi beğenirsiniz.',
+  es: 'Hola! Esta es una vista previa de mi voz. Espero que te guste cómo sueno.',
+  fr: 'Bonjour! Ceci est un aperçu de ma voix. J espère que vous aimez comment je sonne.',
+  de: 'Hallo! Dies ist eine Vorschau meiner Stimme. Ich hoffe, sie gefällt Ihnen.',
+  it: 'Ciao! Questa è un anteprima della mia voce. Spero che ti piaccia come suono.',
+  pt: 'Olá! Esta é uma prévia da minha voz. Espero que você goste de como eu soo.',
+  ja: 'こんにちは！これは私の声のプレビューです。気に入っていただければ幸いです。',
+  ko: '안녕하세요! 제 목소리 미리보기입니다. 마음에 드셨으면 좋겠습니다.',
+};
+
+export async function generateVoicePreview(
+  voiceId: string,
+  language: string = 'en'
+): Promise<string> {
+  const text = VOICE_PREVIEW_TEXTS[language] || VOICE_PREVIEW_TEXTS.en;
+  return generateSceneAudioPreview(text, voiceId);
 }

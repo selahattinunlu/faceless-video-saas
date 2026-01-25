@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { GeneratedScene, ImageEffectId, IMAGE_EFFECTS } from '@/types';
+import { GeneratedScene, ImageEffectId, IMAGE_EFFECTS, TransitionType, TRANSITION_TYPES, Transition } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Volume2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,9 +9,10 @@ import { cn } from '@/lib/utils';
 interface StoryboardProps {
   scenes: GeneratedScene[];
   onEffectChange?: (sceneId: string, effect: ImageEffectId) => void;
+  onTransitionChange?: (sceneId: string, type: 'enter' | 'exit', transition: Transition) => void;
 }
 
-export function Storyboard({ scenes, onEffectChange }: StoryboardProps) {
+export function Storyboard({ scenes, onEffectChange, onTransitionChange }: StoryboardProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
       {scenes.map((scene) => (
@@ -28,22 +29,22 @@ export function Storyboard({ scenes, onEffectChange }: StoryboardProps) {
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Sahne {scene.scene_number}
+                Scene {scene.scene_number}
               </CardTitle>
               {scene.status === 'loading' && (
                 <span className="flex items-center text-xs text-blue-400">
                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  Oluşturuluyor...
+                  Generating...
                 </span>
               )}
               {scene.status === 'complete' && (
-                <span className="text-xs text-green-400">Hazır</span>
+                <span className="text-xs text-green-400">Ready</span>
               )}
               {scene.status === 'pending' && (
-                <span className="text-xs text-muted-foreground">Sırada</span>
+                <span className="text-xs text-muted-foreground">Pending</span>
               )}
               {scene.status === 'error' && (
-                <span className="text-xs text-red-400">Hata</span>
+                <span className="text-xs text-red-400">Error</span>
               )}
             </div>
           </CardHeader>
@@ -52,23 +53,23 @@ export function Storyboard({ scenes, onEffectChange }: StoryboardProps) {
             <div className="aspect-[9/16] bg-muted rounded-lg flex items-center justify-center overflow-hidden relative group">
               {scene.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img 
-                  src={scene.imageUrl} 
-                  alt={`Sahne ${scene.scene_number}`} 
-                  className="w-full h-full object-cover" 
+                <img
+                  src={scene.imageUrl}
+                  alt={`Scene ${scene.scene_number}`}
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="text-muted-foreground text-sm p-4 text-center">
-                  {scene.status === 'loading' ? 'Görsel Çiziliyor...' : 'Görsel Bekleniyor'}
+                  {scene.status === 'loading' ? 'Generating image...' : 'Waiting for image'}
                 </div>
               )}
-              
+
               <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-xs flex items-center gap-1">
                 <Volume2 className={cn(
                   "h-3 w-3",
                   scene.audioBuffer ? "text-green-400" : "text-muted-foreground"
                 )} />
-                {scene.audioBuffer ? 'Ses Hazır' : 'Ses Bekleniyor'}
+                {scene.audioBuffer ? 'Audio ready' : 'Waiting for audio'}
               </div>
             </div>
 
@@ -98,6 +99,66 @@ export function Storyboard({ scenes, onEffectChange }: StoryboardProps) {
                 {IMAGE_EFFECTS.map((effect) => (
                   <option key={effect.id} value={effect.id}>
                     {effect.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Enter Transition Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">
+                Enter:
+              </label>
+              <select
+                value={scene.enterTransition?.type || 'fade'}
+                onChange={(e) => {
+                  if (onTransitionChange) {
+                    onTransitionChange(scene.id, 'enter', {
+                      type: e.target.value as TransitionType,
+                      durationMs: scene.enterTransition?.durationMs || 500,
+                    });
+                  }
+                }}
+                className={cn(
+                  "flex-1 text-xs px-2 py-1 rounded border bg-background",
+                  "border-border hover:border-purple-500/50 focus:border-purple-500",
+                  "focus:outline-none focus:ring-1 focus:ring-purple-500/50",
+                  "transition-colors cursor-pointer"
+                )}
+              >
+                {TRANSITION_TYPES.map((transition) => (
+                  <option key={transition.id} value={transition.id}>
+                    {transition.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Exit Transition Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">
+                Exit:
+              </label>
+              <select
+                value={scene.exitTransition?.type || 'fade'}
+                onChange={(e) => {
+                  if (onTransitionChange) {
+                    onTransitionChange(scene.id, 'exit', {
+                      type: e.target.value as TransitionType,
+                      durationMs: scene.exitTransition?.durationMs || 500,
+                    });
+                  }
+                }}
+                className={cn(
+                  "flex-1 text-xs px-2 py-1 rounded border bg-background",
+                  "border-border hover:border-purple-500/50 focus:border-purple-500",
+                  "focus:outline-none focus:ring-1 focus:ring-purple-500/50",
+                  "transition-colors cursor-pointer"
+                )}
+              >
+                {TRANSITION_TYPES.map((transition) => (
+                  <option key={transition.id} value={transition.id}>
+                    {transition.name}
                   </option>
                 ))}
               </select>

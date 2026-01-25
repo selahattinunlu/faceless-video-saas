@@ -2,7 +2,7 @@
 
 import { ai } from '@/lib/gemini';
 import { Type } from '@google/genai';
-import { ScriptItem, Scene, LanguageCode, SUPPORTED_LANGUAGES } from '@/types';
+import { ScriptItem, Scene, LanguageCode, SUPPORTED_LANGUAGES, EditableScene } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 import { getAutoEffect } from '@/lib/effect-assigner';
 
@@ -129,4 +129,101 @@ export async function updateSceneStatus(
   if (error) {
     throw new Error(`Failed to update scene status: ${error.message}`);
   }
+}
+
+// Generate scenes from user's custom transcript
+export async function generateScenesFromTranscript(
+  transcript: string,
+  language: LanguageCode = 'en'
+): Promise<EditableScene[]> {
+  const languageName = getLanguageName(language);
+
+  const prompt = `
+    You are given a transcript for a short video. Split this transcript into logical scenes (3-5 scenes).
+
+    The transcript is in ${languageName} language.
+
+    For each scene:
+    1. Keep the original narration text as-is (don't modify it)
+    2. Create a detailed visual_prompt in English to visualize this scene
+
+    Transcript:
+    "${transcript}"
+
+    Return ONLY a JSON array.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            scene_number: { type: Type.INTEGER },
+            narration: { type: Type.STRING },
+            visual_prompt: { type: Type.STRING }
+          },
+          required: ["scene_number", "narration", "visual_prompt"]
+        }
+      }
+    }
+  });
+
+  const text = response.text;
+  if (!text) {
+    throw new Error("No scenes generated from transcript");
+  }
+
+  try {
+    const scenes = JSON.parse(text) as ScriptItem[];
+    // Convert to EditableScene format with temporary IDs
+    return scenes.map((scene, index) => ({
+      id: `temp-${Date.now()}-${index}`,
+      scene_number: scene.scene_number,
+      narration: scene.narration,
+      visual_prompt: scene.visual_prompt,
+    }));
+  } catch (e) {
+    console.error("JSON Parse Error", e);
+    throw new Error("Failed to parse scenes JSON");
+  }
+}
+
+// Save edited scenes to database (called after scene editing in wizard)
+export async function saveScenesToProject(
+  projectId: string,
+  scenes: EditableScene[]
+): Promise<Scene[]> {
+  const supabase = await createClient();
+
+  // Delete existing scenes for this project (if any)
+  await supabase
+    .from('scenes')
+    .delete()
+    .eq('project_id', projectId);
+
+  // Insert new scenes with auto-assigned effects
+  const scenesToInsert = scenes.map((scene, index) => ({
+    project_id: projectId,
+    scene_number: index + 1, // Use array index for ordering
+    narration: scene.narration,
+    visual_prompt: scene.visual_prompt,
+    effect: getAutoEffect(index + 1),
+    status: 'pending'
+  }));
+
+  const { data: savedScenes, error: insertError } = await supabase
+    .from('scenes')
+    .insert(scenesToInsert)
+    .select();
+
+  if (insertError) {
+    throw new Error(`Failed to save scenes: ${insertError.message}`);
+  }
+
+  return savedScenes as Scene[];
 }
