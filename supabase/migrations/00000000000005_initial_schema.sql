@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN language TEXT DEFAULT 'en' CHECK (language IN ('en', 'tr', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'ko'));
